@@ -1,0 +1,37 @@
+1/13/2024
+-----------------------------
+1. Merged divide and conquer voronoi code into main code, called from optimizer.py
+2. Note G.nodes is passing funny stuff, needed to convert it to list to fix bug
+3. Is faster but still somewhat slow, potentially optimize via flood-fill algorithm
+4. Last estimate for 2pi is 6.117158723854214 from using 30x30 grid and 24 nearest neighbors
+5. Next programming to do is test cases for paper
+perimeter of circle
+perimeter of box
+perimeter of sphere
+pathological cases (too close to boundary of grid, etc)
+
+estimate for perimeter of circle
+6.117158723854214 using 30x30 grid with 24 nearest neighbors
+
+need to make test for perimeter of sphere
+
+2/10/2024
+-----------------------------
+1. Made new branch for rewrite code
+2. made flat_norm, calculate_edge_vectors, calculate_tree_graph functions in flat_norm_rewrite_main.py
+3. made tests subfolder with test_graph_vectors.py and test_weights.py
+4. made speed_tests subsubfolder with integration.py
+5. tested integration methods from scipy, fixed_quad is fastest and roughly 8.3x faster than cubepy, also faster 4.5x than scipy.quad
+agrees up to machine precision on a test integral similar to ours
+
+results:
+(run time in seconds)
+vec: 0.0004140000091865659
+quad: 9.220000356435776e-05
+trapz: 0.0011656999122351408
+cubepy: 0.000251100049354136
+fixed quad: 3.0099996365606785e-05
+
+todo: make function that sets aside linearly dependent vectors and calculates weights then pairs up
+todo: weight calculation in rewrite
+
