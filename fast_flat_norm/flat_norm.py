@@ -10,7 +10,7 @@ from scipy.sparse import csr_array
 from functools import wraps
 from time import perf_counter
 import cProfile
-
+from numba import jit
 
 def timing(f):
     @wraps(f)

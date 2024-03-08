@@ -14,3 +14,15 @@ estimate for perimeter of circle
 6.117158723854214 using 30x30 grid with 24 nearest neighbors
 
 need to make test for perimeter of sphere
+
+
+3/3/2024
+---------------
+
+Speed up code by:
+
+1. trying different algorithms through networkx min cut max flow
+2. make our own min cut max flow algorithm with numba
+3. rewrite weights function with numba
+
+right now 10^6 points takes 65 mins to run with 60 mins min cut max flow and 5 mins weights
