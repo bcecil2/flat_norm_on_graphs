@@ -10,7 +10,7 @@ from scipy.sparse import csr_array
 from functools import wraps
 from time import perf_counter
 import cProfile
-from numba import jit, int32, float64, types
+from numba import njit, jit, int32, float64, types
 import math
 
 #number of physical cores
@@ -26,7 +26,6 @@ def timing(f):
           (f.__name__, te-ts))
         return result
     return wrap
-
 
 points_x = np.linspace(-2,2,1000)
 points_y = np.linspace(-2,2,1000)
@@ -85,7 +84,7 @@ def weights_numba(i,j,u,u_lengths,values):
     if i == j:
         return math.pi*length
     # try to jiggle into -1,1
-    eps = 10e-6
+    eps = 2.220446049250313e-16
     inner = sum([u[i][k]*u[j][k] for k in range(len(u[i]))])
     inner = inner/(length+eps)
     theta = math.acos(inner)
@@ -93,9 +92,6 @@ def weights_numba(i,j,u,u_lengths,values):
     # idx.clip(0,len(values)-1)
     result = length*values[idx]
     return result
-
-weights_numba = np.vectorize(weights_numba,excluded=['u','u_lengths','values'])
-#weight_function
 
 #solve_vectorized = np.vectorize(np.linalg.lstsq,excluded=['rcond'],signature='(m,m),(m)->(m),(k),(),(m)')
 #weight_function
@@ -107,35 +103,33 @@ def fast_lst_sqs(A,b):
     #print(np.max(sing_vals)/np.min(sing_vals))
     return lstsq_soln[0]
 
-@timing
-@jit(types.Array(float64,2,"C")(types.Array(float64,3,"C"),types.Array(float64,2,"C")),nopython=True)
-def A_solver(A_vec,b_vec):
-    n = len(A_vec)
-    m = len(A_vec[0])
-    soln_vec = np.zeros((n,m))
-    for i in range(n):
-        soln_vec[i] = fast_lst_sqs(A_vec[i],b_vec[i])
-    return soln_vec
-
 def make_b(lengths):
     #weight_function
     return 4*lengths
 
+@njit
 def make_A(edges,lengths):
     #weight_function
-    n = len(edges)
-    i,j = np.indices((n,n))
-    A = weights_numba(i,j,u=edges,u_lengths=lengths,values=values)
-    return A
-
-A_vectorized = np.vectorize(make_A, signature='(m,n),(m)->(m,m)')
-#weight_function
+    A_array = []
+    for i,system in enumerate(edges):
+        n = len(system)
+        sys_lengths = lengths[i]
+        A = np.empty((n,n))
+        for i in range(n):
+            for j in range(n):
+                A[i,j] = weights_numba(i,j,system,sys_lengths,values)
+        A_array.append(A)
+    return A_array
 
 @timing
 def get_weights(edges,lengths):
-    A = A_vectorized(edges,lengths)
+    A = make_A(edges,lengths)
     b = make_b(lengths)
-    weights = A_solver(A,b)
+    n = len(A)
+    weights = []
+    for i in range(n):
+        weights.append(fast_lst_sqs(A[i],b[i]))
+    print(weights)
     return weights
 
 def get_sample(x_range,y_range,N):
