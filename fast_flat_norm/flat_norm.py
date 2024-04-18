@@ -88,13 +88,9 @@ def weights_numba(i,j,u,u_lengths,values):
     inner = sum([u[i][k]*u[j][k] for k in range(len(u[i]))])
     inner = inner/(length+eps)
     theta = math.acos(inner)
-    idx = bs(angles,theta)#np.searchsorted(angles,theta)
-    # idx.clip(0,len(values)-1)
+    idx = bs(angles,theta)
     result = length*values[idx]
     return result
-
-#solve_vectorized = np.vectorize(np.linalg.lstsq,excluded=['rcond'],signature='(m,m),(m)->(m),(k),(),(m)')
-#weight_function
 
 @jit(types.Array(float64,1,"C")(types.Array(float64,2,"C"),types.Array(float64,1,"C")),nopython=True)
 def fast_lst_sqs(A,b):
@@ -103,43 +99,118 @@ def fast_lst_sqs(A,b):
     #print(np.max(sing_vals)/np.min(sing_vals))
     return lstsq_soln[0]
 
-def make_b(lengths):
-    #weight_function
-    return 4*lengths
+
+eps = np.finfo(float).eps
 
 @njit
-def make_A(edges,lengths):
-    #weight_function
+def find_angles(vectors):
+    n = len(vectors)
+    angles = np.empty((n,n))
+    for i in range(n):
+        for j in range(n):
+            if i == j:
+                angles[i,j] = np.nan
+            else:
+                x = vectors[i]
+                y = vectors[j]
+                norms = np.linalg.norm(x)*np.linalg.norm(y)+eps
+                angles[i,j] = np.arccos(np.dot(x,y)/norms)
+    return angles
+
+@njit
+def make_reduced_angles(angles,keys):
+    n = len(keys)
+    result = np.empty((n,n))
+    for i in range(n):
+        for j in range(n):
+            result[i,j] = angles[keys[i],keys[j]]
+    return result
+
+def find_groups(similar_indices):
+    seen = set()
+    groups = {}
+    for idx,row in enumerate(similar_indices):
+        if idx not in seen:
+            similar_vectors = [i for i,el in enumerate(row) if el]
+            groups[idx] = similar_vectors
+            seen.update(similar_vectors)
+    keys = np.fromiter(groups.keys(),dtype=np.int32)
+    return groups,keys
+
+def group_vectors(vectors, tol = 1e-5):
+    angles = find_angles(vectors)
+    abs_angles = np.abs(angles)
+    small_indices = abs_angles <= tol
+    reflect_indices = np.abs(angles - np.pi) <= tol
+    similar_indices = np.logical_or(small_indices,reflect_indices)
+    groups,keys = find_groups(similar_indices)
+    reduced_angles = make_reduced_angles(angles,keys)
+    return reduced_angles, keys, groups
+
+def reconstruct_system(vectors,keys,groups,weights_reduced):
+    weights = np.empty(len(vectors))
+    weights[keys] = weights_reduced
+    print(keys)
+    print(weights_reduced)
+    for key in keys:
+        values = groups[key]
+        print(vectors[values])
+        print(vectors[key])
+        n = len(values)
+        if n:
+            weights[values] = weights[key]*np.linalg.norm(vectors[key])/n
+            s = 0
+            for value in values:
+                weights[value] *= 1/np.linalg.norm(vectors[value])
+                s+= np.linalg.norm(vectors[value])*weights[value]
+            print("WEIGHT VS SUM")
+            print(weights[key]*np.linalg.norm(vectors[key]))
+            print(s)
+    return weights
+
+def make_sys(edges,lengths):
     A_array = []
+    b_array = []
+    key_list = []
+    group_list = []
     for i,system in enumerate(edges):
-        n = len(system)
-        sys_lengths = lengths[i]
+        angles, keys, groups = group_vectors(system)
+        reduced_system = system[keys]
+        #print(system)
+        #print(groups)
+        #print(keys)
+        #print(reduced_system)
+        #print()
+        n = len(reduced_system)
+        sys_lengths = lengths[i][keys]
+        #print(sys_lengths)
         A = np.empty((n,n))
         for i in range(n):
             for j in range(n):
-                A[i,j] = weights_numba(i,j,system,sys_lengths,values)
+                A[i,j] = weights_numba(i,j,reduced_system,sys_lengths,values)
         A_array.append(A)
-    return A_array
+        b_array.append(4*sys_lengths)
+        key_list.append(keys)
+        group_list.append(groups)
+    return A_array, b_array, key_list, group_list
 
 @timing
 def get_weights(edges,lengths):
-    A = make_A(edges,lengths)
-    b = make_b(lengths)
+    A,b,key_list, group_list = make_sys(edges,lengths)
     n = len(A)
-    weights = []
+    weight_list = []
     for i in range(n):
-        weights.append(fast_lst_sqs(A[i],b[i]))
-    print(weights)
-    return weights
+        weights = fast_lst_sqs(A[i],b[i])
+        weight_list.append(reconstruct_system(edges[i],key_list[i],group_list[i],weights))
+    print(weight_list)
+    return weight_list
 
 def get_sample(x_range,y_range,N):
-    #voronoi function
     sample_points_x = np.random.uniform(*x_range,N)
     sample_points_y = np.random.uniform(*y_range,N)
     return np.column_stack((sample_points_x,sample_points_y))
 
 def get_bounding_box(points):
-    #voronoi function
     x_min,x_max = np.min(points[:,0]),np.max(points[:,0])
     y_min,y_max  = np.min(points[:,1]),np.max(points[:,1])
     x_range,y_range = (x_min,x_max),(y_min,y_max)
@@ -148,7 +219,6 @@ def get_bounding_box(points):
 
 @timing
 def voronoi_areas(points,Tree,N=1000000):
-    #voronoi function
     x_range, y_range, total_area = get_bounding_box(points)
     sample_points = get_sample(x_range, y_range, N)
     nearest_neighbors = Tree.query(sample_points,workers=workers)[1]
@@ -160,7 +230,6 @@ def voronoi_areas(points,Tree,N=1000000):
 
 @timing
 def calculate_tree_graph(points,neighbors=24):
-    #main function
     Tree = KDTree(points)
     graph = np.array(Tree.query(points,neighbors+1,workers=workers))
     neighbor_indices = graph[1,:,1:]
@@ -170,14 +239,11 @@ def calculate_tree_graph(points,neighbors=24):
     return Tree,graph,weight_indices
 
 def calculate_edge_vectors(points,graph):
-    #main function
     lengths = graph[0,:,1:] #trim off the first column (all 0s)
-    
     vertices = points[graph[1,:,1:].astype(np.int32)] #ditto as above
     edges = vertices - points[:,np.newaxis] #subtract to get vectors
-    #print(edges[len(edges)//2+1])
-    print("neighbor edges:", edges[len(edges)//2+2])
-    print("vertex:", vertices[len(edges)//2+2])
+    #print("neighbor edges:", edges[len(edges)//2+2])
+    #print("vertex:", vertices[len(edges)//2+2])
     return edges,lengths,vertices
 
 def add_source_sink(G,E,lamb):
@@ -219,8 +285,6 @@ def flat_norm(points,E,lamb=1.0,perim_only=False,neighbors = 24):
     perim = get_perimeter(E,G)
     perimt1 = perf_counter()
 
-
-
     if perim_only:
         return None,None,None,perim
 
@@ -247,7 +311,6 @@ def flat_norm(points,E,lamb=1.0,perim_only=False,neighbors = 24):
     sigma = np.zeros(n).astype(bool)
     sigma[list(keep)] = 1
     sigma = sigma.astype(bool)
-    #print(sigma.shape)
     sigmac = ~sigma
     return result, sigma, sigmac, perim
 
@@ -268,14 +331,14 @@ if __name__ == "__main__":
     #               ,(-1.0,1.0),(1.0,1.0),(1.0,-1.0),(-1.0,-1.0)\
     #                   ,(-2.0,1.0),(-1.0,2.0),(1.0,2.0),(2.0,1.0)\
     #                       ,(2.0,-1.0),(1.0,-2.0),(-1.0,-2.0),(-2.0,-1.0)])
-    points = np.array([(0.0,0.0),(-1.0,0.0),(0.0, -1.0)\
-                  ,(-1.0,1.0),(1.0,1.0)\
-                      ,(-2.0,1.0),(-1.0,2.0),(1.0,2.0),(2.0,1.0)\
-                          ])
-    
-    # points_x = np.arange(-25, 25, 1)
-    # points_y = np.arange(-25, 25, 1)
-    # points = np.dstack(np.meshgrid(points_x,points_y)).reshape(-1,2)
+    # points = np.array([(0.0,0.0),(-1.0,0.0),(0.0, -1.0)\
+    #               ,(-1.0,1.0),(1.0,1.0)\
+    #                   ,(-2.0,1.0),(-1.0,2.0),(1.0,2.0),(2.0,1.0)\
+    #                       ])
+    points_x = np.arange(-5, 5, 1, dtype=np.float64)
+    points_y = np.arange(-5, 5, 1, dtype=np.float64)
+    points = np.dstack(np.meshgrid(points_x,points_y)).reshape(-1,2)
+    plt.scatter(points[:,0],points[:,1])
     #u_lengths = np.linalg.norm(u,axis=1)
     flat_norm(points,np.ones(len(points)),lamb=1.0,neighbors=8)
     #result = get_weights(u,u_lengths)
