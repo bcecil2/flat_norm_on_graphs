@@ -150,12 +150,12 @@ def group_vectors(vectors, tol = 1e-5):
 def reconstruct_system(vectors,keys,groups,weights_reduced):
     weights = np.empty(len(vectors))
     weights[keys] = weights_reduced
-    print(keys)
-    print(weights_reduced)
+    #print(keys)
+    #print(weights_reduced)
     for key in keys:
         values = groups[key]
-        print(vectors[values])
-        print(vectors[key])
+        #print(vectors[values])
+        #print(vectors[key])
         n = len(values)
         if n:
             weights[values] = weights[key]*np.linalg.norm(vectors[key])/n
@@ -163,9 +163,9 @@ def reconstruct_system(vectors,keys,groups,weights_reduced):
             for value in values:
                 weights[value] *= 1/np.linalg.norm(vectors[value])
                 s+= np.linalg.norm(vectors[value])*weights[value]
-            print("WEIGHT VS SUM")
-            print(weights[key]*np.linalg.norm(vectors[key]))
-            print(s)
+            #print("WEIGHT VS SUM")
+            #print(weights[key]*np.linalg.norm(vectors[key]))
+            #print(s)
     return weights
 
 def make_sys(edges,lengths):
@@ -202,7 +202,7 @@ def get_weights(edges,lengths):
     for i in range(n):
         weights = fast_lst_sqs(A[i],b[i])
         weight_list.append(reconstruct_system(edges[i],key_list[i],group_list[i],weights))
-    print(weight_list)
+    #print(weight_list)
     return weight_list
 
 def get_sample(x_range,y_range,N):
