@@ -6,7 +6,7 @@ from scipy.integrate import quad
 
 a = 0
 b = np.pi
-n = 5000
+n = 50000
 
 def integral(theta_uw):
     def integrand(theta,theta_uw):
@@ -14,8 +14,6 @@ def integral(theta_uw):
     result = quad(integrand, 0, 2*np.pi, args= theta_uw,epsabs=1e-16,epsrel=1e-16,limit=500)
     #print("Error estimate:", result[1])
     return result[0]
-
-print(integral(3*np.pi/4),integral(np.pi/4))
 
 # def test_integral():
 #     theta_uw = np.pi/2
@@ -60,7 +58,7 @@ def generate_list():
 def save_dict(table,filename):
     np.savetxt(filename,table,delimiter=",")
 
-save_dict(generate_list(),"2d_lookup_table" + str(n) + ".txt")
+save_dict(generate_list(),"2d_lookup_table" + "new_integrator" + "half" + str(n) + ".txt")
 
 
 

@@ -22,3 +22,19 @@ Prune lengths and edges to only include ratios of smallest to largest no more th
 Throw away points that are very close to one another
 
 make symmetric lookup table
+
+5/3/2024
+------------------------------
+Table seems to be screwed up, use the old 5k table instead 
+fixed bug in reconstruct system, now returning correct paper weights for:
+
+u = np.array([[(-1.0,0.0),(1.0,0.0),(0.0,-1.0),(0.0,1.0)\
+              ,(-1.0,1.0),(1.0,1.0),(1.0,-1.0),(-1.0,-1.0)\
+                  ,(-2.0,1.0),(-1.0,2.0),(1.0,2.0),(2.0,1.0)\
+                      ,(2.0,-1.0),(1.0,-2.0),(-1.0,-2.0),(-2.0,-1.0)]])
+
+made new testing file "testing_weights_5_3_2024.py"
+
+!when calling get_weights outside of file!
+be wary that list of points needs to be wrapped in extra layer of brackets []
+lengths needs to then as a consequence be wrapped in brackets []

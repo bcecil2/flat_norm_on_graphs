@@ -43,7 +43,13 @@ points_y = np.linspace(-2,2,1000)
 # above this is temporary testing stuff only
 # =============================================================================
 
-filename = '2d_lookup_table100000.txt'
+#filename = '2d_lookup_table100000.txt'
+
+#filename = '2d_lookup_table5000.txt'
+
+#filename = "2d_lookup_tablenew_integrator50000.txt"
+
+filename = "2d_lookup_tablenew_integratorhalf50000.txt"
 
 file = np.loadtxt(filename,delimiter=',')
 
@@ -96,9 +102,8 @@ def weights_numba(i,j,u,u_lengths,values):
 def fast_lst_sqs(A,b):
     lstsq_soln = np.linalg.lstsq(A,b)
     sing_vals = lstsq_soln[3]
-    #print(np.max(sing_vals)/np.min(sing_vals))
+    #print("cond number:", np.max(sing_vals)/np.min(sing_vals))
     return lstsq_soln[0]
-
 
 eps = np.finfo(float).eps
 
@@ -153,19 +158,22 @@ def reconstruct_system(vectors,keys,groups,weights_reduced):
     #print(keys)
     #print(weights_reduced)
     for key in keys:
+        old_weight = weights[key]
         values = groups[key]
         #print(vectors[values])
         #print(vectors[key])
         n = len(values)
         if n:
+            n+=1
             weights[values] = weights[key]*np.linalg.norm(vectors[key])/n
-            s = 0
+            weights[key]*=1/n
+            s = weights[key]*np.linalg.norm(vectors[key])
             for value in values:
                 weights[value] *= 1/np.linalg.norm(vectors[value])
                 s+= np.linalg.norm(vectors[value])*weights[value]
-            #print("WEIGHT VS SUM")
-            #print(weights[key]*np.linalg.norm(vectors[key]))
-            #print(s)
+            print("WEIGHT VS SUM")
+            print(old_weight*np.linalg.norm(vectors[key]))
+            print(s)
     return weights
 
 def make_sys(edges,lengths):
@@ -176,14 +184,13 @@ def make_sys(edges,lengths):
     for i,system in enumerate(edges):
         angles, keys, groups = group_vectors(system)
         reduced_system = system[keys]
-        #print(system)
-        #print(groups)
-        #print(keys)
-        #print(reduced_system)
-        #print()
+        # print(system)
+        # print(groups)
+        # print(keys)
+        # print(reduced_system)
         n = len(reduced_system)
         sys_lengths = lengths[i][keys]
-        #print(sys_lengths)
+        # print(sys_lengths)
         A = np.empty((n,n))
         for i in range(n):
             for j in range(n):
@@ -202,7 +209,7 @@ def get_weights(edges,lengths):
     for i in range(n):
         weights = fast_lst_sqs(A[i],b[i])
         weight_list.append(reconstruct_system(edges[i],key_list[i],group_list[i],weights))
-    #print(weight_list)
+    print(weight_list[0])
     return weight_list
 
 def get_sample(x_range,y_range,N):
@@ -327,7 +334,7 @@ def flat_norm(points,E,lamb=1.0,perim_only=False,neighbors = 24):
 # =============================================================================
 
 if __name__ == "__main__":
-    # u = np.array([(-1.0,0.0),(1.0,0.0),(0.0,-1.0),(0.0,1.0)\
+    # u = np.array([(0.0,0.0),(-1.0,0.0),(1.0,0.0),(0.0,-1.0),(0.0,1.0)\
     #               ,(-1.0,1.0),(1.0,1.0),(1.0,-1.0),(-1.0,-1.0)\
     #                   ,(-2.0,1.0),(-1.0,2.0),(1.0,2.0),(2.0,1.0)\
     #                       ,(2.0,-1.0),(1.0,-2.0),(-1.0,-2.0),(-2.0,-1.0)])
